@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clínica Jady — Agendamentos</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --rosa: #e8a0b0; --rosa-escuro: #c0607a; --rosa-claro: #fce8ee;
+    --rosa-medio: #f0b8c8; --creme: #fdf6f8; --texto: #5a2d3a;
+    --texto-leve: #9a6070; --branco: #fff; --borda: #f0c8d5;
+  }
+  body { font-family: Georgia, serif; background: var(--creme); color: var(--texto); min-height: 100vh; }
+  .app { max-width: 960px; margin: 0 auto; padding-bottom: 2rem; }
+
+  header {
+    background: linear-gradient(135deg, #c0607a 0%, #e8a0b0 100%);
+    color: white; padding: 1.5rem 2rem;
+    display: flex; justify-content: space-between; align-items: center;
+    border-radius: 0 0 18px 18px; margin-bottom: 1.5rem;
+    box-shadow: 0 4px 18px rgba(192,96,122,0.18);
+  }
+  .logo { font-size: 1.6rem; font-weight: bold; letter-spacing: 1px; }
+  .logo span { font-size: 0.82rem; display: block; font-weight: normal; opacity: 0.9; letter-spacing: 2px; margin-top: 3px; }
+  .nav { display: flex; gap: 8px; flex-wrap: wrap; }
+  .nav button {
+    background: rgba(255,255,255,0.2); border: 1.5px solid rgba(255,255,255,0.55);
+    color: white; padding: 7px 16px; border-radius: 20px; cursor: pointer;
+    font-size: 13px; font-family: Georgia, serif; transition: all 0.2s;
+  }
+  .nav button.active, .nav button:hover { background: white; color: var(--rosa-escuro); }
+
+  .main { padding: 0 1.5rem; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.5rem; }
+  .stat { background: white; border: 1px solid var(--borda); border-radius: 12px; padding: 1.1rem; text-align: center; }
+  .stat .num { font-size: 1.8rem; font-weight: bold; color: var(--rosa-escuro); }
+  .stat .lbl { font-size: 12px; color: var(--texto-leve); margin-top: 3px; }
+
+  .card { background: white; border-radius: 14px; border: 1px solid var(--borda); padding: 1.5rem; margin-bottom: 1rem; }
+  .card h2 { font-size: 1.1rem; color: var(--rosa-escuro); margin-bottom: 1.2rem; }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 13px; color: var(--texto-leve); margin-bottom: 5px; font-style: italic; }
+  .form-group input, .form-group select, .form-group textarea {
+    width: 100%; border: 1px solid var(--borda); border-radius: 8px;
+    padding: 9px 12px; font-size: 14px; color: var(--texto);
+    background: var(--creme); outline: none; font-family: Georgia, serif;
+    transition: border-color 0.2s;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    border-color: var(--rosa-escuro); background: white;
+  }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+
+  .btn-rosa {
+    background: linear-gradient(135deg, #c0607a, #e8a0b0);
+    color: white; border: none; padding: 11px 24px; border-radius: 22px;
+    cursor: pointer; font-size: 14px; font-family: Georgia, serif;
+    transition: opacity 0.2s; width: 100%; margin-top: 6px;
+    box-shadow: 0 3px 10px rgba(192,96,122,0.2);
+  }
+  .btn-rosa:hover { opacity: 0.88; }
+
+  .btn-pequeno {
+    padding: 5px 13px; border-radius: 14px; font-size: 12px;
+    cursor: pointer; border: 1px solid var(--rosa-escuro);
+    background: white; color: var(--rosa-escuro); font-family: Georgia, serif;
+    transition: all 0.2s; white-space: nowrap;
+  }
+  .btn-pequeno:hover { background: var(--rosa-escuro); color: white; }
+  .btn-pequeno.perigo { border-color: #c0392b; color: #c0392b; }
+  .btn-pequeno.perigo:hover { background: #c0392b; color: white; }
+
+  .btn-icon { padding: 5px 9px; border-radius: 8px; font-size: 13px; cursor: pointer; border: 1px solid var(--borda); background: white; transition: 0.2s; display: flex; align-items: center; justify-content: center;}
+  .btn-icon:hover { background: var(--rosa-claro); }
+  .btn-icon.success { color: #27ae60; border-color: #27ae60; }
+  .btn-icon.success:hover { background: #27ae60; color: white; }
+  .btn-icon.danger { color: #c0392b; border-color: #c0392b; }
+  .btn-icon.danger:hover { background: #c0392b; color: white; }
+
+  .agenda-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
+  .agenda-nav { display: flex; align-items: center; gap: 10px; }
+  .agenda-nav button { background: white; border: 1px solid var(--borda); color: var(--rosa-escuro); padding: 5px 13px; border-radius: 8px; cursor: pointer; font-size: 17px; transition: all 0.2s; }
+  .agenda-nav button:hover { background: var(--rosa-claro); }
+  .agenda-data { font-size: 1rem; font-weight: bold; color: var(--texto); min-width: 200px; text-align: center; }
+
+  .horarios { display: grid; gap: 7px; }
+  .slot { display: flex; align-items: center; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--borda); gap: 10px; }
+  .slot .hora { font-size: 13px; font-weight: bold; color: var(--rosa-escuro); min-width: 48px; }
+  .slot.ocupado { background: var(--rosa-claro); border-color: var(--rosa-medio); }
+  .slot.livre { background: #f0faf4; border-color: #b8e0c8; }
+  .slot.bloqueado { background: #f2f2f2; border-color: #dcdcdc; opacity: 0.8; }
+  .slot.bloqueado .hora { color: #888; }
+  .slot .info { flex: 1; font-size: 13px; }
+  .slot .info .nome { font-weight: bold; color: var(--texto); }
+  .slot .info .servico { color: var(--texto-leve); font-size: 12px; margin-top: 1px; }
+  .slot .info .obs-slot { color: #b07878; font-size: 11px; font-style: italic; margin-top: 1px; }
+  .badge { font-size: 11px; padding: 3px 10px; border-radius: 10px; white-space: nowrap; font-weight: bold; }
+  .badge.pendente { background: #fdf0d5; color: #b08020; }
+  .badge.confirmado { background: #d4f0e0; color: #2a8050; }
+  .badge.livre { background: #e8f5ed; color: #40a065; }
+  .badge.bloqueado { background: #e0e0e0; color: #666; }
+
+  .lista-clientes, .lista-config { display: grid; gap: 9px; margin-top: 10px; }
+  .cliente-item, .config-item { display: flex; align-items: center; padding: 12px 14px; border: 1px solid var(--borda); border-radius: 10px; background: white; gap: 12px; }
+  .avatar { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg, #e8a0b0, #c0607a); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; flex-shrink: 0; }
+  .cliente-info, .config-info { flex: 1; min-width: 0; }
+  .cliente-info .nome, .config-info .titulo { font-size: 14px; font-weight: bold; color: var(--texto); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cliente-info .detalhe, .config-info .detalhe { font-size: 12px; color: var(--texto-leve); margin-top: 1px; }
+  .acoes { display: flex; gap: 6px; }
+
+  .historico-lista { display: grid; gap: 7px; margin-top: 10px; }
+  .hist-item { background: var(--rosa-claro); border-radius: 8px; padding: 8px 12px; font-size: 13px; color: var(--texto); display: flex; justify-content: space-between; align-items: center; }
+  .hist-item .data-hist { color: var(--texto-leve); font-size: 12px; }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(90,45,58,0.35); z-index: 100; align-items: center; justify-content: center; padding: 15px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: white; border-radius: 16px; padding: 1.8rem; width: 100%; max-width: 500px; border: 1px solid var(--borda); box-shadow: 0 8px 32px rgba(192,96,122,0.15); max-height: 90vh; overflow-y: auto; }
+  .modal h3 { color: var(--rosa-escuro); margin-bottom: 1rem; font-size: 1.1rem; }
+  .modal-footer { display: flex; gap: 10px; margin-top: 1rem; }
+  .modal-footer button { flex: 1; padding: 10px; }
+
+  .busca { margin-bottom: 12px; }
+  .busca input { width: 100%; border: 1px solid var(--borda); border-radius: 8px; padding: 9px 12px; font-size: 14px; color: var(--texto); background: var(--creme); outline: none; font-family: Georgia, serif; }
+  .busca input:focus { border-color: var(--rosa-escuro); background: white; }
+
+  .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: var(--rosa-escuro); color: white; padding: 12px 24px; border-radius: 22px; font-size: 14px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 200; white-space: nowrap; box-shadow: 0 4px 14px rgba(192,96,122,0.3); }
+  .toast.show { opacity: 1; }
+
+  .sem-dados { color: var(--texto-leve); font-size: 13px; text-align: center; padding: 1.5rem; font-style: italic; }
+
+  @media print {
+    header .nav, .stats, #sec-agendar, #sec-clientes, #sec-config, .btn-rosa, .btn-pequeno, .acoes { display: none !important; }
+    .section.active { display: block !important; }
+    body { background: white; }
+  }
+
+  @media(max-width: 600px) {
+    .form-row, .form-row-3 { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: 1fr 1fr; }
+    header { flex-direction: column; gap: 12px; text-align: center; }
+    .agenda-header { flex-direction: column; }
+    .acoes { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">
+      ✦ Clínica Jady
+      <span>Fisio Dermato Funcional</span>
+    </div>
+    <nav class="nav">
+      <button id="btn-nav-agenda" class="active" onclick="mostrar('agenda')">📅 Agenda</button>
+      <button onclick="mostrar('agendar')">🌸 Agendar</button>
+      <button onclick="mostrar('clientes')">👤 Clientes</button>
+      <button onclick="mostrar('config')">⚙️ Configurações</button>
+    </nav>
+  </header>
+
+  <div class="main">
+    <div class="stats">
+      <div class="stat"><div class="num" id="st-hoje">0</div><div class="lbl">Hoje</div></div>
+      <div class="stat"><div class="num" id="st-semana">0</div><div class="lbl">Esta semana</div></div>
+      <div class="stat"><div class="num" id="st-clientes">0</div><div class="lbl">Clientes</div></div>
+    </div>
+
+    <div id="sec-agenda" class="section active">
+      <div class="card">
+        <div class="agenda-header">
+          <h2>📅 Agenda do Dia</h2>
+          <div class="agenda-nav">
+            <button onclick="mudarDia(-1)">&#8249;</button>
+            <div class="agenda-data" id="data-exibida"></div>
+            <button onclick="mudarDia(1)">&#8250;</button>
+          </div>
+          <button class="btn-pequeno" onclick="window.print()">🖨️ Imprimir</button>
+        </div>
+        <div class="horarios" id="lista-horarios"></div>
+      </div>
+    </div>
+
+    <div id="sec-agendar" class="section">
+      <div class="card">
+        <h2>🌸 Novo Agendamento</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Cliente</label>
+            <select id="sel-cliente">
+              <option value="">Selecione a cliente...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Serviço</label>
+            <select id="sel-servico"></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Data</label>
+            <input type="date" id="inp-data">
+          </div>
+          <div class="form-group">
+            <label>Horário</label>
+            <select id="inp-hora">
+              <option>08:00</option><option>08:30</option><option>09:00</option>
+              <option>09:30</option><option>10:00</option><option>10:30</option>
+              <option>11:00</option><option>11:30</option><option>13:00</option>
+              <option>13:30</option><option>14:00</option><option>14:30</option>
+              <option>15:00</option><option>15:30</option><option>16:00</option>
+              <option>16:30</option><option>17:00</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Observações (opcional)</label>
+          <textarea id="inp-obs" rows="2" placeholder="Ex: cliente alérgica a algum produto, trazer roupa confortável..."></textarea>
+        </div>
+        <button class="btn-rosa" onclick="salvarAgendamento()">✨ Adicionar na Agenda</button>
+      </div>
+    </div>
+
+    <div id="sec-clientes" class="section">
+      <div class="card">
+        <h2>👤 Cadastrar Nova Cliente</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nome completo *</label>
+            <input type="text" id="inp-nome" placeholder="Ex: Maria Silva">
+          </div>
+          <div class="form-group">
+            <label>Telefone / WhatsApp *</label>
+            <input type="text" id="inp-tel" placeholder="(11) 99999-9999">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Data de nascimento</label>
+            <input type="date" id="inp-nasc">
+          </div>
+          <div class="form-group">
+            <label>E-mail</label>
+            <input type="email" id="inp-email" placeholder="email@exemplo.com">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Observações clínicas</label>
+          <textarea id="inp-obs-cli" rows="2" placeholder="Alergias, condições de saúde, preferências de atendimento..."></textarea>
+        </div>
+        <button class="btn-rosa" onclick="salvarCliente()">✨ Cadastrar Cliente</button>
+      </div>
+
+      <div class="card">
+        <h2>📋 Clientes Cadastradas</h2>
+        <div class="busca">
+          <input type="text" placeholder="🔍 Buscar cliente pelo nome..." id="inp-busca" oninput="renderClientes()">
+        </div>
+        <div class="lista-clientes" id="lista-clientes-ui"></div>
+      </div>
+    </div>
+
+    <div id="sec-config" class="section">
+      <div class="card">
+        <h2>💎 Gerenciar Serviços e Valores</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nome do Procedimento *</label>
+            <input type="text" id="inp-novo-servico" placeholder="Ex: Limpeza de Pele">
+          </div>
+          <div class="form-group">
+            <label>Valor (R$) *</label>
+            <input type="number" step="0.01" id="inp-valor-servico" placeholder="Ex: 150.00">
+          </div>
+        </div>
+        <button class="btn-rosa" onclick="salvarServico()">➕ Adicionar Serviço</button>
+        <div class="lista-config" id="lista-servicos-ui"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-historico">
+  <div class="modal">
+    <h3 id="modal-titulo">Histórico</h3>
+    <div id="modal-corpo"></div>
+    <div class="modal-footer">
+      <button class="btn-pequeno" onclick="fecharModal('modal-historico')" style="width:100%">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-editar-cli">
+  <div class="modal">
+    <h3>✏️ Editar Cliente</h3>
+    <input type="hidden" id="edit-cli-id">
+    <div class="form-group"><label>Nome *</label><input type="text" id="edit-cli-nome"></div>
+    <div class="form-group"><label>Telefone *</label><input type="text" id="edit-cli-tel"></div>
+    <div class="form-group"><label>Nascimento</label><input type="date" id="edit-cli-nasc"></div>
+    <div class="form-group"><label>E-mail</label><input type="email" id="edit-cli-email"></div>
+    <div class="form-group"><label>Observações</label><textarea id="edit-cli-obs" rows="3"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn-pequeno" onclick="fecharModal('modal-editar-cli')">Cancelar</button>
+      <button class="btn-pequeno" style="background:var(--rosa-escuro);color:white" onclick="salvarEdicaoCli()">Salvar Alterações</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-editar-serv">
+  <div class="modal">
+    <h3>✏️ Editar Serviço</h3>
+    <input type="hidden" id="edit-serv-id">
+    <div class="form-group"><label>Nome *</label><input type="text" id="edit-serv-nome"></div>
+    <div class="form-group"><label>Valor (R$) *</label><input type="number" step="0.01" id="edit-serv-valor"></div>
+    <div class="modal-footer">
+      <button class="btn-pequeno" onclick="fecharModal('modal-editar-serv')">Cancelar</button>
+      <button class="btn-pequeno" style="background:var(--rosa-escuro);color:white" onclick="salvarEdicaoServ()">Salvar Alterações</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// --- CONFIGURAÇÃO SUPABASE ---
+const SUPABASE_URL = "https://kmhhqmfuebjplsxovopj.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImttaGhxbWZ1ZWJqcGxzeG92b3BqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDcxODUsImV4cCI6MjA5MDM4MzE4NX0.IKrsdHKbYya8bLvpHZbhuWjQU6yXKI3necBm0iDIOpA";
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const DIAS = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+const HORARIOS = ['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30',
+  '13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00'];
+
+let diaOffset = 0;
+let clientes = [];
+let agendamentos = [];
+let servicos = [];
+
+// --- FUNÇÕES DE CARREGAMENTO (NUVEM) ---
+async function carregarTudo() {
+    const { data: c } = await supabase.from('clientes').select('*').order('nome');
+    const { data: s } = await supabase.from('servicos').select('*').order('nome');
+    const { data: a } = await supabase.from('agendamentos').select('*');
+    clientes = c || [];
+    servicos = s || [];
+    agendamentos = a || [];
+    
+    renderAgenda();
+    renderClientes();
+    atualizarSelectServicos();
+    atualizarStats();
+}
+
+// --- Utilitários ---
+function fmtDataISO(d) {
+  return d.toISOString().split('T')[0];
+}
+function diaAtual() {
+  const d = new Date();
+  d.setDate(d.getDate() + diaOffset);
+  return d;
+}
+function fmtDataExibir(d) {
+  return `${DIAS[d.getDay()]}, ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+function formatarMoeda(valor) {
+  return parseFloat(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function mudarDia(n) {
+  diaOffset += n;
+  renderAgenda();
+}
+
+// --- Renderização da Agenda ---
+function renderAgenda() {
+  const d = diaAtual();
+  document.getElementById('data-exibida').textContent = fmtDataExibir(d);
+  const iso = fmtDataISO(d);
+  const lista = document.getElementById('lista-horarios');
+  
+  const agsDia = agendamentos.filter(a => a.data === iso);
+
+  lista.innerHTML = HORARIOS.map(h => {
+    const ag = agsDia.find(a => a.hora === h);
+    if (ag) {
+      const cli = clientes.find(c => c.id === ag.cliente_id);
+      const nome = cli ? cli.nome : 'Cliente removida';
+      const status = ag.status || 'pendente';
+      const badgeClass = status === 'pendente' ? 'pendente' : 'confirmado';
+      const badgeText = status === 'pendente' ? '⏳ Pendente' : '✅ Confirmado';
+
+      return `<div class="slot ocupado">
+        <span class="hora">${h}</span>
+        <div class="info">
+          <div class="nome">${nome}</div>
+          <div class="servico">${ag.servico}</div>
+          ${ag.obs ? `<div class="obs-slot">📝 ${ag.obs}</div>` : ''}
+        </div>
+        <span class="badge ${badgeClass}">${badgeText}</span>
+        <div class="acoes" style="margin-left: 10px;">
+          ${status === 'pendente' ? `<button class="btn-icon success" onclick="confirmarAgendamento(${ag.id})">✔️</button>` : ''}
+          <button class="btn-icon danger" onclick="cancelarAgendamento(${ag.id})">❌</button>
+        </div>
+      </div>`;
+    } else {
+      return `<div class="slot livre">
+        <span class="hora">${h}</span>
+        <div class="info" style="color:var(--texto-leve);font-size:13px;font-style:italic;">Horário livre</div>
+        <span class="badge livre">Livre</span>
+      </div>`;
+    }
+  }).join('');
+  atualizarStats();
+}
+
+async function atualizarStats() {
+  const hoje = fmtDataISO(new Date());
+  document.getElementById('st-hoje').textContent = agendamentos.filter(a => a.data === hoje).length;
+  document.getElementById('st-clientes').textContent = clientes.length;
+}
+
+// --- Clientes ---
+function renderClientes() {
+  const busca = (document.getElementById('inp-busca')?.value || '').toLowerCase();
+  const sel = document.getElementById('sel-cliente');
+  sel.innerHTML = '<option value="">Selecione a cliente...</option>' +
+    clientes.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+
+  const lista = document.getElementById('lista-clientes-ui');
+  const filtrados = clientes.filter(c => c.nome.toLowerCase().includes(busca));
+
+  lista.innerHTML = filtrados.map(c => {
+    const ini = c.nome.substring(0,2).toUpperCase();
+    return `<div class="cliente-item">
+      <div class="avatar">${ini}</div>
+      <div class="cliente-info">
+        <div class="nome">${c.nome}</div>
+        <div class="detalhe">${c.tel}</div>
+      </div>
+      <div class="acoes">
+        <button class="btn-pequeno" onclick="verHistorico(${c.id})">Histórico</button>
+        <button class="btn-pequeno" onclick="abrirEdicaoCli(${c.id})">✏️ Editar</button>
+        <button class="btn-pequeno perigo" onclick="excluirCliente(${c.id})">Remover</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// --- CRUD SUPABASE ---
+
+async function salvarAgendamento() {
+  const payload = {
+    cliente_id: parseInt(document.getElementById('sel-cliente').value),
+    servico: document.getElementById('sel-servico').value,
+    data: document.getElementById('inp-data').value,
+    hora: document.getElementById('inp-hora').value,
+    obs: document.getElementById('inp-obs').value.trim(),
+    status: 'pendente'
+  };
+
+  if (!payload.cliente_id || !payload.servico || !payload.data) return toast('⚠️ Preencha tudo!');
+
+  const { error } = await supabase.from('agendamentos').insert([payload]);
+  if (!error) {
+    toast('✨ Agendado com sucesso!');
+    carregarTudo();
+    mostrar('agenda');
+  }
+}
+
+async function confirmarAgendamento(id) {
+  await supabase.from('agendamentos').update({ status: 'confirmado' }).eq('id', id);
+  carregarTudo();
+}
+
+async function cancelarAgendamento(id) {
+  if (confirm('Deseja cancelar?')) {
+    await supabase.from('agendamentos').delete().eq('id', id);
+    carregarTudo();
+  }
+}
+
+async function salvarCliente() {
+  const cli = {
+    nome: document.getElementById('inp-nome').value.trim(),
+    tel: document.getElementById('inp-tel').value.trim(),
+    nasc: document.getElementById('inp-nasc').value || null,
+    email: document.getElementById('inp-email').value.trim(),
+    obs: document.getElementById('inp-obs-cli').value.trim()
+  };
+  if (!cli.nome || !cli.tel) return toast('⚠️ Nome e Telefone obrigatórios');
+
+  const { error } = await supabase.from('clientes').insert([cli]);
+  if (!error) {
+    toast('✨ Cliente salva!');
+    carregarTudo();
+  }
+}
+
+async function excluirCliente(id) {
+    if(!confirm("Remover cliente?")) return;
+    await supabase.from('clientes').delete().eq('id', id);
+    carregarTudo();
+}
+
+async function salvarServico() {
+  const serv = {
+    nome: document.getElementById('inp-novo-servico').value.trim(),
+    valor: parseFloat(document.getElementById('inp-valor-servico').value) || 0
+  };
+  await supabase.from('servicos').insert([serv]);
+  carregarTudo();
+}
+
+async function excluirServico(id) {
+    await supabase.from('servicos').delete().eq('id', id);
+    carregarTudo();
+}
+
+// --- Interface ---
+function mostrar(sec) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('sec-'+sec).classList.add('active');
+  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+  if (sec === 'config') renderConfigServicos();
+}
+
+function renderConfigServicos() {
+    const lista = document.getElementById('lista-servicos-ui');
+    lista.innerHTML = servicos.map(s => `
+      <div class="config-item">
+        <div class="config-info"><div class="titulo">${s.nome}</div><div class="detalhe">${formatarMoeda(s.valor)}</div></div>
+        <button class="btn-pequeno perigo" onclick="excluirServico(${s.id})">Remover</button>
+      </div>
+    `).join('');
+}
+
+function atualizarSelectServicos() {
+  const sel = document.getElementById('sel-servico');
+  sel.innerHTML = '<option value="">Selecione...</option>' + 
+    servicos.map(s => `<option value="${s.nome}">${s.nome} - ${formatarMoeda(s.valor)}</option>`).join('');
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function fecharModal(id) { document.getElementById(id).classList.remove('open'); }
+
+async function verHistorico(id) {
+  const cli = clientes.find(c => c.id === id);
+  const { data: ags } = await supabase.from('agendamentos').select('*').eq('cliente_id', id).order('data', {ascending: false});
+  
+  document.getElementById('modal-titulo').textContent = `Histórico — ${cli.nome}`;
+  const corpo = document.getElementById('modal-corpo');
+  corpo.innerHTML = ags.length ? ags.map(a => `
+    <div class="hist-item">
+        <div><strong>${a.servico}</strong></div>
+        <span class="data-hist">${a.data} · ${a.hora}</span>
+    </div>`).join('') : '<p class="sem-dados">Sem histórico.</p>';
+  
+  document.getElementById('modal-historico').classList.add('open');
+}
+
+// Iniciar
+carregarTudo();
+document.getElementById('inp-data').value = fmtDataISO(new Date());
+
+</script>
+</body>
+</html>
